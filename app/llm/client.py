@@ -58,7 +58,7 @@ class LLMClient:
         """同步调用 LLM，返回完整响应"""
         client = self._vllm if backend == "vllm" else self._general
         model_name = model or (
-            settings.GENERAL_MODEL if backend == "general" else "deepseek-8b-qlora"
+            settings.GENERAL_MODEL if backend == "general" else settings.VLLM_MODEL
         )
 
         kwargs: dict = {
@@ -100,7 +100,7 @@ class LLMClient:
         """流式调用 LLM，逐 token yield"""
         client = self._vllm if backend == "vllm" else self._general
         model_name = model or (
-            settings.GENERAL_MODEL if backend == "general" else "deepseek-8b-qlora"
+            settings.GENERAL_MODEL if backend == "general" else settings.VLLM_MODEL
         )
 
         try:
@@ -137,16 +137,24 @@ class LLMClient:
             response_format={"type": "json_object"},
         )
 
+        content = resp.content.strip()
+
+        # 剥离 markdown 代码块
+        if content.startswith("```"):
+            lines = content.split("\n")
+            content = "\n".join(l for l in lines if not l.startswith("```")).strip()
+
+        # 标准解析
         try:
-            return json.loads(resp.content)
-        except json.JSONDecodeError:
-            # 尝试从 markdown code block 中提取 JSON
-            content = resp.content.strip()
-            if content.startswith("```"):
-                lines = content.split("\n")
-                json_lines = [l for l in lines if not l.startswith("```")]
-                content = "\n".join(json_lines)
             return json.loads(content)
+        except json.JSONDecodeError:
+            pass
+
+        # 宽松解析：LLM 有时在字符串中输出字面换行符 / 控制字符
+        try:
+            return json.JSONDecoder(strict=False).decode(content)
+        except json.JSONDecodeError:
+            raise
 
 
 # ---- 单例 ----

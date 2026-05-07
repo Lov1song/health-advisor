@@ -27,6 +27,7 @@ class Settings(BaseSettings):
 
     # ---- LLM ----
     VLLM_BASE_URL: str = "http://localhost:8001/v1"
+    VLLM_MODEL: str = "deepseek-8b-qlora"          # vLLM --served-model-name 必须与此一致
     DEEPSEEK_API_KEY: str = ""
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
     GENERAL_MODEL: str = "deepseek-chat"

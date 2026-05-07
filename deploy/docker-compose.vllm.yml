@@ -1,0 +1,58 @@
+# Phase 4: vLLM 服务部署 (GPU Docker)
+#
+# 前提:
+#   - 已完成模型合并，文件在 models/mental_health_merged/
+#   - 主机已安装 NVIDIA Container Toolkit
+#
+# 启动:
+#   docker compose -f deploy/docker-compose.vllm.yml up -d
+#
+# 验证:
+#   python deploy/test_vllm.py
+#
+# 查看日志:
+#   docker compose -f deploy/docker-compose.vllm.yml logs -f vllm
+
+version: "3.9"
+
+services:
+  vllm:
+    image: vllm/vllm-openai:latest
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      # HuggingFace Token (如需下载私有模型时填写)
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN:-}
+    ports:
+      - "8001:8000"   # 宿主机 8001 → 容器 8000，与 .env VLLM_BASE_URL 对齐
+    volumes:
+      - ../models:/models:ro          # 挂载合并后的模型 (只读)
+      - vllm_hf_cache:/root/.cache/huggingface
+    command: >
+      --model /models/mental_health_merged
+      --served-model-name deepseek-8b-qlora
+      --max-model-len 2048
+      --gpu-memory-utilization 0.88
+      --quantization bitsandbytes
+      --dtype float16
+      --trust-remote-code
+      --enable-prefix-caching
+      --host 0.0.0.0
+      --port 8000
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s    # 3B 模型加载约需 30-45s
+
+volumes:
+  vllm_hf_cache:

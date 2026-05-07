@@ -229,7 +229,19 @@ app/
 └── schemas/             # Pydantic 请求/响应模型
 
 scripts/
-└── seed_recipes.py      # ChromaDB 写入 15 条示例中餐菜谱
+├── seed_recipes.py      # ChromaDB 写入 15 条示例中餐菜谱
+└── data_soulchat.py     # SoulChat 数据集转换为 LlamaFactory ShareGPT 格式
+
+train/
+├── deepseek_8b_qlora.yaml  # QLoRA 训练配置（Qwen2.5-3B-Instruct，4-bit）
+└── merge_lora.py           # 训练后 LoRA 权重合并脚本
+
+deploy/
+├── docker-compose.vllm.yml # vLLM Docker 部署（端口 8001）
+├── start_vllm.sh           # vLLM 启动脚本
+└── test_vllm.py            # vLLM 集成测试（5 个用例）
+
+run_train.py               # Phase 4 训练入口（解决 Windows CLI 静默退出问题）
 
 tests/
 ├── test_health_calc.py
@@ -287,6 +299,7 @@ tests/
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | DeepSeek API 地址 |
 | `GENERAL_MODEL` | `deepseek-chat` | 通用对话模型名称 |
 | `VLLM_BASE_URL` | `http://localhost:8001/v1` | 本地微调模型地址（MentalAgent） |
+| `VLLM_MODEL` | `deepseek-8b-qlora` | vLLM `--served-model-name` 须与此一致 |
 | `SHORT_TERM_WINDOW` | `10` | 短期记忆消息条数 |
 | `CONSOLIDATION_INTERVAL` | `10` | 长期记忆整理间隔（轮次） |
 | `LONG_TERM_TOP_K` | `5` | 加载长期记忆条数 |
@@ -311,6 +324,30 @@ pytest tests/ -v --cov=app
 - [x] Phase 2：LangGraph 工作流、意图路由、三类 Agent、DeepSeek LLM 客户端
 - [x] Phase 3：ChromaDB 菜谱 RAG + Neo4j 营养知识图谱
 - [x] Phase 5：分层记忆系统（MemoryManager + MemoryConsolidator，在 chat.py 中生效）
-- [ ] Phase 4：心理咨询 QLora 微调模型（VLLM 部署，当前 fallback 到 DeepSeek）
+- [🔄] Phase 4：心理咨询 QLoRA 微调模型训练中（Qwen2.5-3B-Instruct，RTX 3060 6GB）
+- [ ] Phase 4 部署：LoRA 合并 → vLLM Docker 部署（端口 8001）
 - [ ] Phase 5 完整集成：将 MemoryManager 接入 LangGraph workflow 节点
 - [ ] Phase 6：性能优化（Alembic 迁移、RERANK、缓存）
+
+### Phase 4 本地模型训练流程
+
+```bash
+# 1. 数据准备
+python scripts/data_soulchat.py
+
+# 2. QLoRA 微调（需 NVIDIA GPU，显存 ≥ 6GB）
+python run_train.py
+# 训练配置：train/deepseek_8b_qlora.yaml（4-bit, rank=32, ~3-4 小时）
+
+# 3. LoRA 权重合并
+python train/merge_lora.py
+# 合并后模型输出到 models/mental_health_merged/
+
+# 4. 启动 vLLM 推理服务
+docker compose -f deploy/docker-compose.vllm.yml up -d
+
+# 5. 验证部署
+python deploy/test_vllm.py
+```
+
+> 训练完成前，MentalAgent 自动 fallback 到 DeepSeek API，系统功能不受影响。

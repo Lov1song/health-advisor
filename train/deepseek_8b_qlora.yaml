@@ -1,0 +1,63 @@
+# Phase 4: Qwen2.5-3B QLoRA 微调 — 心理咨询专用 (RTX 3060 6GB 适配版)
+#
+# 前置条件:
+#   pip install llamafactory datasets bitsandbytes
+#   python scripts/prepare_training_data.py --source all --max-samples 50000
+#
+# 运行训练 (约 3-4 小时):
+#   llamafactory-cli train train/deepseek_8b_qlora.yaml
+#
+# GPU 要求: 6 GB VRAM (RTX 3060 / 2060 / 4060)
+#   显存预算: 基础模型 4-bit ~1.8 GB + LoRA ~0.2 GB + 激活值 ~2 GB ≈ 4 GB
+
+### 基础模型
+model_name_or_path: Qwen/Qwen2.5-3B-Instruct
+# 备选: Qwen/Qwen2.5-1.5B-Instruct (3 GB VRAM，质量略低)
+
+### 训练方式
+stage: sft
+do_train: true
+finetuning_type: lora
+
+### LoRA 参数 (rank=32 适合 3B 模型，rank=64 显存会溢出)
+lora_target: all
+lora_rank: 32
+lora_alpha: 64
+lora_dropout: 0.05
+
+### QLoRA 量化 (4-bit NF4，训练期间基础模型占 ~1.8 GB)
+quantization_bit: 4
+quantization_method: bitsandbytes
+
+### 数据集
+dataset: mental_health_sft
+dataset_dir: data/training          # 指向 data/training/dataset_info.json
+template: qwen                      # Qwen 系列专用模板
+cutoff_len: 1024                    # 3060 6GB 下 2048 会 OOM，用 1024
+max_samples: 50000
+overwrite_cache: true
+preprocessing_num_workers: 4
+
+### 输出
+output_dir: outputs/mental_health_lora
+logging_steps: 20
+save_steps: 500
+plot_loss: true
+overwrite_output_dir: true
+
+### 训练超参
+per_device_train_batch_size: 1      # 6GB 下只能 batch=1
+gradient_accumulation_steps: 16     # 等效 batch=16，与 8B 版保持一致
+gradient_checkpointing: true        # 以计算换显存，节省约 40% 激活值显存
+learning_rate: 1.0e-4
+num_train_epochs: 3.0
+lr_scheduler_type: cosine
+warmup_ratio: 0.1
+bf16: true
+ddp_timeout: 180000000
+
+### 验证
+val_size: 0.05
+per_device_eval_batch_size: 1
+eval_strategy: steps
+eval_steps: 500
