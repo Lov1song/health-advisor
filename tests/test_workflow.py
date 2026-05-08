@@ -25,7 +25,7 @@ class TestWorkflowNodes:
             "response": "",
         }
 
-        result = await load_memory_node(state)
+        result = await load_memory_node(state, {})
         assert result["short_term_memory"] == []
         assert result["long_term_memory"] == []
         assert result["user_profile"] == {}
@@ -46,7 +46,7 @@ class TestWorkflowNodes:
             "should_consolidate": False,
         }
 
-        result = await save_memory_node(state)
+        result = await save_memory_node(state, {})
         assert result["turn_count"] == 5
         assert result["should_consolidate"] is False
 
@@ -65,7 +65,7 @@ class TestWorkflowNodes:
             "should_consolidate": False,
         }
 
-        result = await save_memory_node(state)
+        result = await save_memory_node(state, {})
         assert result["turn_count"] == 10
         assert result["should_consolidate"] is True
 

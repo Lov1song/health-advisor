@@ -38,7 +38,7 @@ class TestRecipeRetriever:
             mock_col.query.return_value = mock_results
             mock_get.return_value = mock_col
 
-            with patch("app.rag.recipe_retriever.embed_text", return_value=[0.1] * 512):
+            with patch("app.rag.recipe_retriever.embed_text", new_callable=AsyncMock, return_value=[0.1] * 512):
                 from app.rag.recipe_retriever import search_recipes
                 results = await search_recipes("低脂早餐", top_k=2)
 
@@ -65,7 +65,7 @@ class TestRecipeRetriever:
             mock_col.query.return_value = mock_results
             mock_get.return_value = mock_col
 
-            with patch("app.rag.recipe_retriever.embed_text", return_value=[0.1] * 512):
+            with patch("app.rag.recipe_retriever.embed_text", new_callable=AsyncMock, return_value=[0.1] * 512):
                 from app.rag.recipe_retriever import search_recipes
                 results = await search_recipes("沙拉", allergen_exclude=["花生"])
 
@@ -80,7 +80,7 @@ class TestRecipeRetriever:
             mock_col = MagicMock()
             mock_get.return_value = mock_col
 
-            with patch("app.rag.recipe_retriever.embed_text", return_value=[0.1] * 512):
+            with patch("app.rag.recipe_retriever.embed_text", new_callable=AsyncMock, return_value=[0.1] * 512):
                 from app.rag.recipe_retriever import index_recipe
                 await index_recipe({
                     "id": "test_001",

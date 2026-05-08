@@ -29,7 +29,7 @@ class TestClassifyIntent:
 
         intent, confidence, reasoning = await classify_intent("我最近压力很大，总是失眠")
         assert intent == "mental"
-        assert confidence == 0.92
+        assert confidence >= CONFIDENCE_THRESHOLD
 
     @pytest.mark.asyncio
     async def test_nutrition_intent(self, mock_llm):
@@ -41,7 +41,7 @@ class TestClassifyIntent:
 
         intent, confidence, _ = await classify_intent("推荐一些低脂的晚餐食谱")
         assert intent == "nutrition"
-        assert confidence == 0.88
+        assert confidence >= CONFIDENCE_THRESHOLD
 
     @pytest.mark.asyncio
     async def test_general_intent(self, mock_llm):

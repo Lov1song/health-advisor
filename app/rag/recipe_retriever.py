@@ -44,7 +44,7 @@ async def search_recipes(
             await logger.awarn("recipe_collection_empty")
             return []
 
-        query_embedding = embed_text(query)
+        query_embedding = await embed_text(query)
         results = collection.query(
             query_embeddings=[query_embedding],
             n_results=min(k * 2, total),  # 多取一倍，后续过滤过敏原
@@ -86,6 +86,19 @@ async def search_recipes(
         return []
 
 
+async def seed_if_empty(recipes: list[dict]) -> None:
+    """首次启动时，若集合为空则写入默认菜谱"""
+    try:
+        collection = _get_collection()
+        if collection.count() > 0:
+            return
+        for recipe in recipes:
+            await index_recipe(recipe)
+        await logger.ainfo("recipes_seeded", count=len(recipes))
+    except Exception as e:
+        await logger.awarning("recipe_seed_failed", error=str(e))
+
+
 async def index_recipe(recipe: dict) -> None:
     """索引单条菜谱"""
     collection = _get_collection()
@@ -97,7 +110,7 @@ async def index_recipe(recipe: dict) -> None:
         f"主要食材: {', '.join(ingredients)}。"
         f"标签: {', '.join(recipe.get('tags', []))}。"
     )
-    embedding = embed_text(text)
+    embedding = await embed_text(text)
     collection.upsert(
         ids=[doc_id],
         embeddings=[embedding],
