@@ -1,7 +1,4 @@
-version: "3.9"
-
 services:
-  # ---- 应用 ----
   app:
     build:
       context: .
@@ -14,11 +11,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
     volumes:
-      - ./data:/app/data
+      - ./data/chroma:/app/data/chroma
     restart: unless-stopped
 
-  # ---- PostgreSQL ----
   postgres:
     image: postgres:16-alpine
     environment:
@@ -35,7 +35,6 @@ services:
       timeout: 3s
       retries: 5
 
-  # ---- Redis ----
   redis:
     image: redis:7-alpine
     ports:
@@ -48,25 +47,37 @@ services:
       timeout: 3s
       retries: 5
 
-  # ---- Neo4j ----
   neo4j:
     image: neo4j:5-community
     environment:
       NEO4J_AUTH: neo4j/neo4j_password
       NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
     ports:
-      - "7474:7474"   # HTTP
-      - "7687:7687"   # Bolt
+      - "7474:7474"
+      - "7687:7687"
     volumes:
       - neo4jdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
-  # ---- ChromaDB ----
   chromadb:
-    image: chromadb/chroma:latest
+    image: chromadb/chroma:0.5.20
     ports:
       - "8002:8000"
     volumes:
       - chromadata:/chroma/chroma
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/heartbeat || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 volumes:
   pgdata:
