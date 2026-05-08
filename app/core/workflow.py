@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
+import uuid
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 
 from app.agents.general_agent import GeneralAgent
@@ -12,41 +15,61 @@ from app.agents.nutrition_agent import NutritionAgent
 from app.config import get_settings
 from app.core.intent_router import classify_intent_node
 from app.core.state import AgentState
+from app.memory import MemoryConsolidator, MemoryManager
 from app.utils.logger import get_logger
 
 logger = get_logger("workflow")
 
-# ---- Agent 单例 ----
+# ---- 单例 ----
 _mental_agent = MentalAgent()
 _nutrition_agent = NutritionAgent()
 _general_agent = GeneralAgent()
+_memory_manager = MemoryManager()
+_consolidator = MemoryConsolidator()
 
 
 # ============================================================
 # LangGraph 节点函数
 # ============================================================
 
-async def load_memory_node(state: AgentState) -> AgentState:
-    """节点: 加载记忆上下文
+async def load_memory_node(state: AgentState, config: RunnableConfig) -> AgentState:
+    """节点: 加载记忆上下文，持久化用户消息"""
+    state.setdefault("short_term_memory", [])
+    state.setdefault("long_term_memory", [])
+    state.setdefault("user_profile", {})
+    state.setdefault("tool_calls", [])
+    state.setdefault("rag_context", [])
+    state.setdefault("kg_context", [])
+    state.setdefault("turn_count", 0)
 
-    Phase 5 完整实现，当前初始化空记忆。
-    """
-    if "short_term_memory" not in state:
-        state["short_term_memory"] = []
-    if "long_term_memory" not in state:
-        state["long_term_memory"] = []
-    if "user_profile" not in state:
-        state["user_profile"] = {}
-    if "tool_calls" not in state:
-        state["tool_calls"] = []
-    if "rag_context" not in state:
-        state["rag_context"] = []
-    if "kg_context" not in state:
-        state["kg_context"] = []
-    if "turn_count" not in state:
-        state["turn_count"] = 0
+    db = (config.get("configurable") or {}).get("db")
+    if db is None:
+        await logger.ainfo("memory_loaded", user_id=state.get("user_id"), source="skip")
+        return state
 
-    await logger.ainfo("memory_loaded", user_id=state.get("user_id"))
+    user_id = uuid.UUID(state["user_id"])
+    session_id = uuid.UUID(state["session_id"])
+    user_message = state["messages"][0]["content"] if state.get("messages") else ""
+
+    short_term, long_term, user_profile = await asyncio.gather(
+        _memory_manager.load_short_term(db, session_id),
+        _memory_manager.load_long_term(db, user_id),
+        _memory_manager.load_user_profile(db, user_id),
+    )
+
+    # 先保存本轮用户消息，再将历史上下文注入 state
+    await _memory_manager.save_message(db, session_id, "user", user_message)
+
+    state["short_term_memory"] = short_term
+    state["long_term_memory"] = long_term
+    state["user_profile"] = user_profile
+
+    await logger.ainfo(
+        "memory_loaded",
+        user_id=str(user_id),
+        short_term_count=len(short_term),
+        long_term_count=len(long_term),
+    )
     return state
 
 
@@ -68,14 +91,22 @@ async def general_agent_node(state: AgentState) -> AgentState:
     return await _general_agent.run(state)
 
 
-async def save_memory_node(state: AgentState) -> AgentState:
-    """节点: 保存记忆
-
-    Phase 5 完整实现，当前仅更新轮次计数。
-    """
+async def save_memory_node(state: AgentState, config: RunnableConfig) -> AgentState:
+    """节点: 持久化助手回复，更新轮次计数"""
     state["turn_count"] = state.get("turn_count", 0) + 1
     interval = get_settings().CONSOLIDATION_INTERVAL
     state["should_consolidate"] = (state["turn_count"] % interval == 0)
+
+    db = (config.get("configurable") or {}).get("db")
+    if db is not None:
+        session_id = uuid.UUID(state["session_id"])
+        await _memory_manager.save_message(
+            db,
+            session_id,
+            "assistant",
+            state.get("response", ""),
+            intent=state.get("intent"),
+        )
 
     await logger.ainfo(
         "memory_saved",
@@ -85,13 +116,35 @@ async def save_memory_node(state: AgentState) -> AgentState:
     return state
 
 
-async def consolidate_memory_node(state: AgentState) -> AgentState:
-    """节点: 记忆整理
-
-    Phase 5 完整实现，当前仅记录日志。
-    """
+async def consolidate_memory_node(state: AgentState, config: RunnableConfig) -> AgentState:
+    """节点: 将短期对话压缩为长期记忆摘要"""
     await logger.ainfo("memory_consolidation_triggered", turn_count=state.get("turn_count"))
-    # TODO: Phase 5 — 调用 consolidation agent 异步整理
+
+    db = (config.get("configurable") or {}).get("db")
+    if db is not None and state.get("short_term_memory"):
+        user_id = uuid.UUID(state["user_id"])
+        turn_count = state.get("turn_count", 0)
+        try:
+            result = await _consolidator.consolidate(
+                conversation=state["short_term_memory"],
+                current_profile=state.get("user_profile"),
+            )
+            if result.get("summary"):
+                await _memory_manager.save_long_term(
+                    db=db,
+                    user_id=user_id,
+                    summary=result["summary"],
+                    key_topics=result.get("key_topics", []),
+                    emotional_state=result.get("emotional_state"),
+                    turn_start=turn_count - get_settings().CONSOLIDATION_INTERVAL,
+                    turn_end=turn_count,
+                )
+            await _memory_manager.update_user_profile(
+                db, user_id, result.get("profile_updates") or {}
+            )
+        except Exception as e:
+            await logger.aerror("consolidation_failed", error=str(e))
+
     state["should_consolidate"] = False
     return state
 
@@ -194,10 +247,11 @@ async def run_workflow(
     long_term_memory: list[dict] | None = None,
     user_profile: dict | None = None,
     turn_count: int = 0,
+    db=None,
 ) -> dict[str, Any]:
-    """执行完整工作流，返回结果字典
+    """执行完整工作流，返回结果字典。
 
-    这是 Chat API 调用的主入口。
+    传入 db 时，记忆节点直接读写数据库；不传时保持无状态（用于测试）。
     """
     workflow = get_workflow()
 
@@ -218,8 +272,8 @@ async def run_workflow(
         "response": "",
     }
 
-    # 执行工作流
-    final_state = await workflow.ainvoke(initial_state)
+    config: dict = {"configurable": {"db": db}} if db is not None else {}
+    final_state = await workflow.ainvoke(initial_state, config=config)
 
     return {
         "intent": final_state.get("intent", "general"),

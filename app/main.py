@@ -11,6 +11,7 @@ from app.api.middleware import RequestLoggingMiddleware, register_exception_hand
 from app.api.v1.router import router as v1_router
 from app.db.postgres import init_db, close_db
 from app.db.redis_client import init_redis, close_redis
+from app.db.neo4j_client import close_driver as close_neo4j
 from app.utils.logger import setup_logging, get_logger
 
 settings = get_settings()
@@ -35,12 +36,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         await logger.awarn("redis_unavailable", error=str(e))
 
+    # 初始化 RAG (ChromaDB 菜谱 + Neo4j 知识图谱)
+    try:
+        from scripts.seed_recipes import _load_recipes
+        from app.rag.recipe_retriever import seed_if_empty
+        await seed_if_empty(_load_recipes())
+        await logger.ainfo("chromadb_ready")
+    except Exception as e:
+        await logger.awarning("chromadb_seed_skipped", error=str(e))
+
+    try:
+        from app.rag.kg_retriever import seed_nutrition_kg
+        await seed_nutrition_kg()
+        await logger.ainfo("neo4j_ready")
+    except Exception as e:
+        await logger.awarning("neo4j_seed_skipped", error=str(e))
+
     await logger.ainfo("started", app=settings.APP_NAME)
 
     yield
 
     # ---- 关闭 ----
     await close_redis()
+    await close_neo4j()
     await close_db()
     await logger.ainfo("shutdown_complete")
 

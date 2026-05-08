@@ -73,7 +73,7 @@ Both `MemoryManager` and `MemoryConsolidator` are fully implemented (not Phase 5
 - `MemoryManager.load_long_term()` — fetches the latest `LONG_TERM_TOP_K` (default: 5) summarized memories for the user.
 - `MemoryConsolidator.consolidate()` — calls `complete_json()` to compress a conversation into `{summary, key_topics, emotional_state, profile_updates}`. Triggered every `CONSOLIDATION_INTERVAL` (default: 10) turns.
 
-Stub nodes in `workflow.py` (`load_memory_node`, `save_memory_node`, `consolidate_memory_node`) are marked `# TODO: Phase 5` — they initialize/count state but do not call `MemoryManager`. The actual memory load/save happens in `chat.py` before and after `run_workflow()`.
+All three memory nodes in `workflow.py` are fully wired to `MemoryManager`. `run_workflow()` accepts an optional `db: AsyncSession`; when provided, the nodes load/save via DB. Pass `db` via `RunnableConfig.configurable`. When `db` is absent (e.g. in tests), nodes skip DB calls and use whatever is already in state.
 
 ### LLM Client (`app/llm/client.py`)
 
@@ -107,9 +107,9 @@ All settings loaded from `.env` via pydantic-settings. Call `get_settings()` (ca
 
 - **Phase 1** ✅: FastAPI skeleton, DB layer, auth, health-calc tools
 - **Phase 2** ✅: LangGraph workflow + intent router + all three agents
-- **Phase 3** 🔲: RAG (ChromaDB recipe search + Neo4j KG) — stubs in `app/rag/`
-- **Phase 4** 🔲: Fine-tuned mental health model (vLLM deployment)
-- **Phase 5** 🔲: Hierarchical memory wired into workflow nodes
+- **Phase 3** ✅: RAG fully wired — ChromaDB recipe search + Neo4j KG; auto-seeded on startup via `main.py` lifespan
+- **Phase 4** ✅: QLoRA training pipeline built (`scripts/`); `MentalAgent` auto-falls back to `general` when vLLM unavailable
+- **Phase 5** ✅: Hierarchical memory wired into workflow nodes via `RunnableConfig`; `load/save/consolidate_memory_node` all fully implemented
 - **Phase 6** 🔲: Optimization
 
 ## Key Conventions

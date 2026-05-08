@@ -1,19 +1,25 @@
 """菜谱数据初始化脚本 — 向 ChromaDB 写入示例中餐菜谱
 
 用法:
-    python scripts/seed_recipes.py
+    python scripts/seed_recipes.py              # 写入 data/recipes.json（若存在）或内置示例
+    python scripts/seed_recipes.py --force      # 强制清空重写
 """
 
 import asyncio
+import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(ROOT))
 
 from app.rag.recipe_retriever import index_recipe
 from app.utils.logger import get_logger
 
 logger = get_logger("seed")
+
+# 优先加载 LLM 生成的完整语料，回退到内置示例
+_DATA_FILE = ROOT / "data" / "recipes.json"
 
 RECIPES = [
     # ── 早餐 ──────────────────────────────────────────────
@@ -142,12 +148,23 @@ RECIPES = [
 ]
 
 
+def _load_recipes() -> list[dict]:
+    """优先从 data/recipes.json 加载，否则用内置示例"""
+    if _DATA_FILE.exists():
+        with open(_DATA_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        print(f"从 {_DATA_FILE.name} 加载 {len(data)} 条食谱")
+        return data
+    return RECIPES
+
+
 async def main() -> None:
-    print(f"开始写入 {len(RECIPES)} 条菜谱到 ChromaDB...")
-    for i, recipe in enumerate(RECIPES, 1):
+    recipes = _load_recipes()
+    print(f"开始写入 {len(recipes)} 条菜谱到 ChromaDB...")
+    for i, recipe in enumerate(recipes, 1):
         await index_recipe(recipe)
-        print(f"  [{i}/{len(RECIPES)}] {recipe['name']}")
-    print("✓ 菜谱数据写入完成")
+        print(f"  [{i}/{len(recipes)}] {recipe['name']}")
+    print("[OK] 菜谱数据写入完成")
 
 
 if __name__ == "__main__":
