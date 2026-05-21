@@ -35,7 +35,9 @@ class Settings(BaseSettings):
     # ---- 记忆系统 ----
     SHORT_TERM_WINDOW: int = 10
     CONSOLIDATION_INTERVAL: int = 10
-    LONG_TERM_TOP_K: int = 5
+    LONG_TERM_TOP_K: int = 10
+    MEMORY_SEMANTIC_TOP_K: int = 8
+    MEMORY_DEDUP_THRESHOLD: float = 0.85
 
     # ---- RAG ----
     RECIPE_TOP_K: int = 20

@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(not exist *)",
+      "PowerShell(New-Item *)",
+      "Bash(conda env *)",
+      "PowerShell(python -c \"import sys; print\\(sys.executable\\)\")",
+      "Bash(python -c \"import llamafactory; import os; print\\(os.path.dirname\\(llamafactory.__file__\\)\\)\")",
+      "PowerShell(& \"D:\\\\anaconda3\\\\envs\\\\langgraph\\\\python.exe\" -c \"import llamafactory; import os; print\\(os.path.dirname\\(llamafactory.__file__\\)\\)\")",
+      "PowerShell(& \"D:\\\\anaconda3\\\\envs\\\\langgraph\\\\python.exe\" --version)",
+      "PowerShell(& \"D:\\\\anaconda3\\\\envs\\\\langgraph\\\\python.exe\" -m pip cache dir)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\BLUE\\\\AppData\\\\Roaming\\\\Python\\\\Python311\\\\site-packages\" | Where-Object {$_.Name -match \"torch\"} | Select-Object Name)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\BLUE\\\\AppData\\\\Roaming\\\\Python\\\\Python311\\\\Scripts\" | Where-Object {$_.Name -match \"llamafactory\"})",
+      "PowerShell([System.Environment]::GetEnvironmentVariable\\(\"HF_HOME\", \"User\"\\))",
+      "Bash(python *)",
+      "Bash(conda run *)",
+      "Bash(conda search *)",
+      "Bash(conda install *)",
+      "Bash(Get-Content \"C:\\\\Users\\\\BLUE\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\E--2026-05-health-advisor\\\\92502124-1a27-42bd-b07d-04311abe5bd8\\\\tasks\\\\bq1duuldb.output\" -Wait)",
+      "Bash(Get-Content *)",
+      "Bash(\"D:/anaconda3/envs/langgraph/python.exe\" scripts/seed_recipes.py)",
+      "Bash(D:/anaconda3/envs/langgraph/python.exe -c ' *)",
+      "Bash(docker compose *)",
+      "Bash(curl -s http://localhost:8000/healthz)",
+      "Bash(curl *)",
+      "Bash(\"D:/anaconda3/envs/langgraph/python.exe\" test_chat.py)",
+      "Bash(dir \"E:\\\\2026\\\\05\\\\health-advisor\" /s)",
+      "Bash(findstr \"bytes\")",
+      "Bash(dir E:\\\\2026\\\\05\\\\health-advisor *)",
+      "PowerShell(Get-PSDrive E | Select-Object Used, Free | ForEach-Object { \"已用: $\\([math]::Round\\($_.Used/1GB,1\\)\\) GB  剩余: $\\([math]::Round\\($_.Free/1GB,1\\)\\) GB\" })",
+      "PowerShell(docker system df *)",
+      "PowerShell(wsl --list --verbose 2>$null)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\BLUE\\\\AppData\\\\Local\\\\Packages\" -ErrorAction SilentlyContinue | Where-Object { $_.Name -match \"Ubuntu|Canonical|Debian|Kali|WSL\" } | Select-Object Name)",
+      "PowerShell(Get-ChildItem \"E:\\\\2026\\\\DOCKER_STORE\" -Recurse -ErrorAction SilentlyContinue | Where-Object { -not $_.PSIsContainer } | Select-Object FullName, @{N=\"GB\";E={[math]::Round\\($_.Length/1GB,2\\)}} | Sort-Object GB -Descending)",
+      "PowerShell(conda info *)",
+      "Bash(echo \"EXIT:$?\")"
+    ]
+  }
+}

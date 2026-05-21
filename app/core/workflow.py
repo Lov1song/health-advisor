@@ -53,7 +53,7 @@ async def load_memory_node(state: AgentState, config: RunnableConfig) -> AgentSt
 
     short_term, long_term, user_profile = await asyncio.gather(
         _memory_manager.load_short_term(db, session_id),
-        _memory_manager.load_long_term(db, user_id),
+        _memory_manager.load_long_term(db, user_id, query_text=user_message),
         _memory_manager.load_user_profile(db, user_id),
     )
 
@@ -134,6 +134,9 @@ async def consolidate_memory_node(state: AgentState, config: RunnableConfig) -> 
                     db=db,
                     user_id=user_id,
                     summary=result["summary"],
+                    memory_type=result.get("memory_type", "event"),
+                    importance=result.get("importance", 0.5),
+                    is_pinned=result.get("is_pinned", False),
                     key_topics=result.get("key_topics", []),
                     emotional_state=result.get("emotional_state"),
                     turn_start=turn_count - get_settings().CONSOLIDATION_INTERVAL,

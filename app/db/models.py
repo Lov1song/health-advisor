@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
@@ -77,7 +77,7 @@ class Message(Base):
 
 
 class LongTermMemory(Base):
-    """长期记忆 — 每 CONSOLIDATION_INTERVAL 轮触发一次 LLM 整理，压缩为摘要"""
+    """长期记忆 — 支持语义检索、重要性分级、去重"""
 
     __tablename__ = "long_term_memories"
 
@@ -89,6 +89,13 @@ class LongTermMemory(Base):
         index=True,
     )
     summary = Column(Text, nullable=False)
+    # health_fact | goal | event | preference | emotional_pattern
+    memory_type = Column(String(32), default="event", nullable=False)
+    importance = Column(Float, default=0.5, nullable=False)
+    is_pinned = Column(Boolean, default=False, nullable=False)  # 始终注入 context
+    access_count = Column(Integer, default=0, nullable=False)
+    last_accessed = Column(DateTime(timezone=True), nullable=True)
+    embedding_id = Column(String(128), nullable=True, index=True)  # ChromaDB doc ID
     key_topics = Column(JSONB, default=list)
     emotional_state = Column(String(256), nullable=True)
     turn_start = Column(Integer, default=0)
